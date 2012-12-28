@@ -48,7 +48,7 @@ public class DocxTest {
 
 	// @Test
 	public void fieldTest() throws IOException {
-		File targetDir = new File("fieldTest");
+		File targetDir = new File(".test/fieldTest");
 		targetDir.mkdirs();
 		// tearDownHelper.add(targetDir);
 
@@ -87,7 +87,7 @@ public class DocxTest {
 
 	@Test
 	public void chartTest() throws IOException, JSONException {
-		File targetDir = new File("_chartTest");
+		File targetDir = new File(".test/_chartTest");
 		targetDir.mkdirs();
 		//tearDownHelper.add(targetDir);
 
@@ -109,14 +109,14 @@ public class DocxTest {
 			processor.process(docx, rootMap);
 		}
 
-		File saveFile = new File("chartTest-save.docx");
+		File saveFile = new File(".test/chartTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));
 //		tearDownHelper.add(saveFile);
 	}
 
 	@Test
 	public void mainTest() throws IOException, JSONException {
-		File targetDir = new File("mainTest");
+		File targetDir = new File(".test/mainTest");
 		targetDir.mkdirs();
 		//tearDownHelper.add(targetDir);
 
@@ -137,21 +137,21 @@ public class DocxTest {
 			processor.process(docx, rootMap);
 		}
 
-		File saveFile = new File("mainTest-save.docx");
+		File saveFile = new File(".test/mainTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));
 //		tearDownHelper.add(saveFile);
 	}
 
 	@Test
 	public void saveTest() throws IOException {
-		File targetDir = new File("saveTest");
+		File targetDir = new File(".test/saveTest");
 		targetDir.mkdirs();
 		tearDownHelper.add(targetDir);
 
 		OOXMLPackage docx = new OOXMLPackage();
 		docx.load(getClass().getResourceAsStream("/nestedList2.docx"), targetDir);
 
-		File saveFile = new File("saveTest.docx");
+		File saveFile = new File(".test/saveTest.docx");
 		docx.save(new FileOutputStream(saveFile));
 		tearDownHelper.add(saveFile);
 
@@ -160,7 +160,7 @@ public class DocxTest {
 
 	// @Test
 	public void extractingTest() throws IOException {
-		File targetDir = new File("extractingTest");
+		File targetDir = new File(".test/extractingTest");
 		targetDir.mkdirs();
 		tearDownHelper.add(targetDir);
 
