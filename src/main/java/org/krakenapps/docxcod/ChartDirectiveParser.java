@@ -34,6 +34,7 @@ import freemarker.template.TemplateMethodModelEx;
 import freemarker.template.TemplateModelException;
 
 public class ChartDirectiveParser implements OOXMLProcessor {
+	// returns unique incremental integer value for consecutive same originalRid
 	public class ChartUidFunction implements TemplateMethodModelEx {
 		public static final String functionName = "chartUid";
 		private String rid = null;
@@ -317,8 +318,9 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 		Node attrRid = chartNode.getAttributes().getNamedItem("r:id");
 		String originalRid = attrRid.getTextContent();
 		logger.info("chart rid: {}", originalRid);
+		// ChartUidFunction returns unique incremental integer value for consecutive same originalRid
 		appendSiblingToTheParent(chartNode, "w:drawing", AsttpPos.BEFORE,
-				getMagicNode(doc, String.format("#assign curChartUid=chartUid(\'%s\')", attrRid)));
+				getMagicNode(doc, String.format("#assign curChartUid=%s(\'%s\')", ChartUidFunction.functionName, originalRid)));
 		attrRid.setTextContent(String.format("${%s(\'%s\', curChartUid)}", ChartResFunction.functionName, originalRid));
 	}
 

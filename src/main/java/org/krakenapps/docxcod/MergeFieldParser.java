@@ -78,36 +78,51 @@ public class MergeFieldParser implements OOXMLProcessor {
 		 */
 		if (n.getNodeName().equals("w:fldSimple")) {
 			/* // @formatter:off
-            <w:fldSimple w:instr="MERGEFIELD &quot;@before-row#list .vars[\&quot;disk-usage-summary\&quot;] as u&quot; \* MERGEFORMAT">
-              <w:r w:rsidR="00C47145">
+            <w:fldSimple w:instr=" MERGEFIELD  @after-row/#list  \* MERGEFORMAT ">
+              <w:r w:rsidR="00771959">
                 <w:rPr>
-                  <w:noProof />
+                  <w:noProof/>
                 </w:rPr>
-                <w:t>«@before-row#list .vars["disk-usage-summa»</w:t>
+                <w:t>«@after-row/</w:t>
+              </w:r>
+              <w:r w:rsidR="00771959">
+                <w:rPr>
+                  <w:rFonts w:hint="eastAsia"/>
+                  <w:noProof/>
+                </w:rPr>
+                <w:t>#</w:t>
+              </w:r>
+              <w:r w:rsidR="00771959">
+                <w:rPr>
+                  <w:noProof/>
+                </w:rPr>
+                <w:t>list»</w:t>
               </w:r>
             </w:fldSimple>
+
 
             */ // @formatter:on
 			logger.debug("fldSimple found");
 			XPath xpath = newXPath(doc);
 			XPathExpression xpFldSimpleText;
+			Node parent = n.getParentNode();
 			try {
 				xpFldSimpleText = xpath.compile("w:r/w:t");
 				NodeList t = evaluateXPathExpr(xpFldSimpleText, n);
 
 				t.item(0).setTextContent("");
 				t.item(0).appendChild(getMagicNode(doc, directive));
+				parent.insertBefore(t.item(0).getParentNode().cloneNode(true), n);
 			} catch (XPathExpressionException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 
 			// n : w:fldSimple can contain many w:r in its children
-			Node parent = n.getParentNode();
-			for (Node c : new NodeListWrapper(n.getChildNodes())) {
-				if (c.getNodeName() != null)
-					parent.insertBefore(c.cloneNode(true), n);
-			}
+//			for (Node c : new NodeListWrapper(n.getChildNodes())) {
+//				if (c.getNodeName() != null)
+//					parent.insertBefore(c.cloneNode(true), n);
+//			}
 			parent.removeChild(n);
 		} else if (n.getNodeName().equals("w:fldChar")) {
 			// @formatter:off
