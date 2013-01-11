@@ -21,7 +21,7 @@ import javax.xml.xpath.XPathExpressionException;
 
 import org.krakenapps.docxcod.util.CloseableHelper;
 import org.krakenapps.docxcod.util.XMLDocHelper;
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -266,7 +266,7 @@ public class MergeFieldParser implements OOXMLProcessor {
 	public static final String UTF8_BOM = "\uFEFF";
 
 	private Node findFldCharNode(Node sibling) {
-		for (Node n : new NodeListWrapper(sibling.getChildNodes())) {
+		for (Node n : new NodeListIterAdapter(sibling.getChildNodes())) {
 			if (n.getNodeName().equals("w:fldChar")) {
 				return n;
 			}
@@ -275,7 +275,7 @@ public class MergeFieldParser implements OOXMLProcessor {
 	}
 
 	private Node findTextNode(Node sibling) {
-		for (Node n : new NodeListWrapper(sibling.getChildNodes())) {
+		for (Node n : new NodeListIterAdapter(sibling.getChildNodes())) {
 			if (n.getNodeName().equals("w:t")) {
 				return n;
 			}

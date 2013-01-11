@@ -10,18 +10,18 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import javax.xml.xpath.XPath;
 
 import org.apache.commons.io.FilenameUtils;
 import org.krakenapps.docxcod.util.CloseableHelper;
 import org.krakenapps.docxcod.util.XMLDocHelper;
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -58,6 +58,7 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 	public class ChartResFunction implements TemplateMethodModelEx {
 		public static final String functionName = "ridHelper";
 		public int count = 0;
+		private boolean contentTypeAppended = false;
 		private final OOXMLPackage pkg;
 
 		public ChartResFunction(OOXMLPackage pkg) {
@@ -66,27 +67,254 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 
 		@Override
 		public Object exec(@SuppressWarnings("rawtypes") List arguments) throws TemplateModelException {
-			String originalRid = arguments.get(0).toString();
-			String chartUid = arguments.get(1).toString();
-			String rid = originalRid + "_" + chartUid;
+			try {
+				String originalRid = arguments.get(0).toString();
+				String chartUid = arguments.get(1).toString();
+				String rid = originalRid + "_" + chartUid;
 
-			Environment ce = Environment.getCurrentEnvironment();
-			@SuppressWarnings("unchecked")
-			Set<String> knownVariable = ce.getKnownVariableNames();
-			HashMap<String, Object> localRoot = new HashMap<String, Object>();
-			for (String k : knownVariable) {
-				localRoot.put(k, ce.getVariable(k));
+				Environment ce = Environment.getCurrentEnvironment();
+				@SuppressWarnings("unchecked")
+				Set<String> knownVariable = ce.getKnownVariableNames();
+				HashMap<String, Object> localRoot = new HashMap<String, Object>();
+				for (String k : knownVariable) {
+					localRoot.put(k, ce.getVariable(k));
+				}
+				// add ".kraken_chart_xml" to [Content_Types].xml
+				appendContentType(pkg);
+				// create copied chart(xml, xlsx)
+				createCopiedChart(pkg, originalRid, chartUid, localRoot);
+
+				// must return text content of attr "r:id".
+				return rid;
+			} catch (Exception e) {
+				logger.warn("Unhandeled exception", e);
+			}
+			// if this dd
+			return null;
+		}
+
+		private void updateChartXML(String chartXmlPath, ArrayList<CellData> cells) throws UnsupportedDocumentException {
+			if (cells == null)
+				throw new UnsupportedDocumentException("cannot obtain cell data from copied chart");
+
+			
+		}
+
+		private void appendContentType(OOXMLPackage pkg) {
+			InputStream f = null;
+			try {
+				f = new FileInputStream(new File(pkg.getDataDir(), CONTENT_TYPES_XML));
+				Document doc = newDocumentBuilder().parse(f);
+
+				XPath xpath = newXPath(doc);
+				NodeList nodeList = evaluateXPath(xpath, "//:Default[@Extension='" + DOCXCOD_CHART_XML_EXT + "']", doc);
+				if (!contentTypeAppended && nodeList.getLength() == 0) {
+					Element newChild = doc.createElement("Default");
+					newChild.setAttribute("ContentType", CHART_XML_CONTENTTYPE);
+					newChild.setAttribute("Extension", DOCXCOD_CHART_XML_EXT);
+					doc.getFirstChild().appendChild(newChild);
+
+					XMLDocHelper.save(doc, new File(pkg.getDataDir(), CONTENT_TYPES_XML), true);
+
+					this.contentTypeAppended = true;
+				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				CloseableHelper.safeClose(f);
+			}
+		}
+
+		private void createCopiedChart(OOXMLPackage pkg, String originalRid, String chartUid,
+				HashMap<String, Object> localRoot) throws Exception {
+			// append new chart xml entry in ooxml relationship file.
+			String chartXmlPath = appendToRels(pkg, "word/_rels/document.xml.rels", originalRid, chartUid);
+
+			if (chartXmlPath != null) {
+				// translate chart xml path to more absolute path
+				// (ex: word/chart/chart1_0.docxcod_chart_xml)
+				chartXmlPath = FilenameUtils.concat("word", chartXmlPath);
+				logger.info("new chart xml filename: {}", chartXmlPath);
+
+				// copy chart xml to chartXmlPath and change reference to xlsx
+				String embeddedXlsxPath = createChartFromExisting(pkg, chartXmlPath, chartUid);
+
+				// create new xlsx for chart in chartXmlPath
+				ArrayList<CellData> cells = createNewEmbeddedXlsx(pkg, embeddedXlsxPath, chartUid, localRoot);
+
+				// update strRef/numRef in chart xml with embeddedXlsx
+				updateChartXML(chartXmlPath, cells);
+			} else {
+				throw new Exception("cannot append rels entry in document.xml.rels");
+			}
+		}
+
+		private String createChartFromExisting(OOXMLPackage pkg, String chartXmlPath, String chartUid) {
+			InputStream f = null;
+			try {
+				// create copied chart xml
+				String embeddedXlsxRid = null;
+				String embeddedXlsxFile = null;
+
+				f = new FileInputStream(new File(pkg.getDataDir(), chartXmlPath));
+				Document doc = newDocumentBuilder().parse(f);
+
+				XPath xpath = newXPath(doc);
+				NodeList nodeList = evaluateXPath(xpath, "//c:externalData", doc);
+				if (nodeList.getLength() != 0) {
+					Node n = nodeList.item(0);
+					Node attrRid = n.getAttributes().getNamedItem("r:id");
+					if (attrRid == null)
+						throw new IllegalStateException(String.format("no Target externalData in %s", chartXmlPath));
+					embeddedXlsxRid = attrRid.getTextContent();
+				}
+
+				XMLDocHelper.save(doc, new File(pkg.getDataDir(), makeNewChartFilename(chartXmlPath, chartUid)), true);
+
+				f.close();
+
+				// open newly created xml and modify relationship to xlsx
+				f = new FileInputStream(new File(pkg.getDataDir(), makeRelsPath(chartXmlPath)));
+				doc = newDocumentBuilder().parse(f);
+				xpath = newXPath(doc);
+				if (embeddedXlsxRid != null) {
+					NodeList rsNodes = evaluateXPath(xpath, "//:Relationship[@Id='" + embeddedXlsxRid + "']", doc);
+					if (rsNodes.getLength() != 0) {
+						Node n = rsNodes.item(0);
+						embeddedXlsxFile = FilenameUtils.concat("word/charts", n.getAttributes().getNamedItem("Target")
+								.getTextContent());
+						String relTarget = makeXlsxRelTarget(chartXmlPath,
+								makeNewXlsxFilename(embeddedXlsxFile, chartUid));
+						n.getAttributes().getNamedItem("Target")
+								.setTextContent(FilenameUtils.separatorsToUnix(relTarget));
+					}
+				}
+				XMLDocHelper.save(doc,
+						new File(pkg.getDataDir(), makeRelsPath(makeNewChartFilename(chartXmlPath, chartUid))), true);
+
+				return embeddedXlsxFile;
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				CloseableHelper.safeClose(f);
 			}
 
-			appendContentType(pkg); // add ".kraken_chart_xml" to
-									// [Content_Types].xml
-			createCopiedChart(pkg, originalRid, chartUid, localRoot); // create
-																		// copied
-																		// chart(xml,
-																		// xlsx)
+			return null;
+		}
 
-			// must return text content of attr "r:id".
-			return rid;
+		private String makeRelsPath(String chartXmlPath) {
+			String name = FilenameUtils.getName(chartXmlPath);
+			String path = FilenameUtils.getPath(chartXmlPath);
+
+			return FilenameUtils.concat(FilenameUtils.concat(path, "_rels"), name + ".rels");
+		}
+
+		private String makeXlsxRelTarget(String chartXmlPath, String xlsxFilename) {
+			// TODO: use reliable relative path logic
+			return "../embeddings/" + FilenameUtils.getName(xlsxFilename);
+		}
+
+		private String makeNewChartFilename(String chartXmlPath, String chartUid) {
+			// trim right ".xml"
+			String s = chartXmlPath.substring(0, chartXmlPath.length() - 4);
+			s += "_" + chartUid + "." + DOCXCOD_CHART_XML_EXT;
+			return s;
+		}
+
+		private String appendToRels(OOXMLPackage pkg, String relPath, String originalRid, String chartUid) {
+			InputStream f = null;
+			try {
+				f = new FileInputStream(new File(pkg.getDataDir(), relPath));
+				Document doc = newDocumentBuilder().parse(f);
+
+				XPath xpath = newXPath(doc);
+				NodeList nodeList = evaluateXPath(xpath, "//:Relationship[@Id='" + originalRid + "']", doc);
+				String chartXmlPath = null;
+				if (nodeList.getLength() != 0) {
+					Node n = nodeList.item(0);
+
+					Node attrTarget = n.getAttributes().getNamedItem("Target");
+					if (attrTarget == null)
+						throw new IllegalStateException(String.format("no Target attribute in %s with rid %s", relPath,
+								originalRid));
+					chartXmlPath = attrTarget.getTextContent();
+
+					Node attrType = n.getAttributes().getNamedItem("Type");
+					if (attrType == null)
+						throw new IllegalStateException(String.format("no Type attribute in %s with rid %s", relPath,
+								originalRid));
+					String type = attrType.getTextContent();
+
+					Element newChild = doc.createElement("Relationship");
+
+					newChild.setAttribute("Id", originalRid + "_" + chartUid);
+					newChild.setAttribute("Target",
+							FilenameUtils.separatorsToUnix(makeNewChartFilename(chartXmlPath, chartUid)));
+					newChild.setAttribute("Type", type);
+					doc.getFirstChild().appendChild(newChild);
+				} else {
+					return null;
+				}
+
+				XMLDocHelper.save(doc, new File(pkg.getDataDir(), relPath), true);
+
+				return chartXmlPath;
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				CloseableHelper.safeClose(f);
+			}
+
+			return null;
+		}
+
+		private String makeNewXlsxFilename(String embeddedXlsxFile, String chartUid) {
+			String path = FilenameUtils.getPath(embeddedXlsxFile);
+			String basename = FilenameUtils.getBaseName(embeddedXlsxFile);
+			String ext = FilenameUtils.getExtension(embeddedXlsxFile);
+
+			return path + basename + "_" + chartUid + "." + ext;
+		}
+
+		private ArrayList<CellData> createNewEmbeddedXlsx(OOXMLPackage pkg, String embeddedXlsxFile, String chartUid,
+				Map<String, Object> localRoot) {
+			OOXMLPackage xlsx = new OOXMLPackage();
+			FileInputStream is = null;
+			FileOutputStream os = null;
+			try {
+				is = new FileInputStream(new File(pkg.getDataDir(), embeddedXlsxFile));
+				File targetDir = new File(".test/xlsxSample");
+				targetDir.mkdirs();
+				xlsx.load(is, targetDir);
+				
+				ArrayList<CellData> cells = new ArrayList<CellData>();
+
+				List<OOXMLProcessor> processors = new ArrayList<OOXMLProcessor>();
+				processors.add(new EmbeddedChartPreprocessor());
+				processors.add(new MagicNodeUnwrapper("xl/worksheets/sheet1.xml"));
+				processors.add(new FreeMarkerRunner("xl/worksheets/sheet1.xml"));
+				processors.add(new EmbeddedChartPostprocessor(cells));
+
+				xlsx.apply(processors, localRoot);
+
+				os = new FileOutputStream(new File(pkg.getDataDir(), makeNewXlsxFilename(embeddedXlsxFile, chartUid)));
+				xlsx.save(os);
+				
+				return cells;
+
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				CloseableHelper.safeClose(is);
+				CloseableHelper.safeClose(os);
+			}
+
+			return null;
 		}
 
 		public String getName() {
@@ -95,190 +323,6 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 	}
 
 	private Logger logger = LoggerFactory.getLogger(getClass().getName());
-
-	private void createCopiedChart(OOXMLPackage pkg, String originalRid, String chartUid,
-			HashMap<String, Object> localRoot) {
-		String chartXmlPath = appendToRels(pkg, "word/_rels/document.xml.rels", originalRid, chartUid);
-		chartXmlPath = FilenameUtils.concat("word", chartXmlPath);
-		if (chartXmlPath != null) {
-			logger.info("new chart xml filename: {}", chartXmlPath);
-			String embeddedXlsxPath = createChartFromExisting(pkg, chartXmlPath, chartUid);
-			createNewEmbeddedXlsx(pkg, embeddedXlsxPath, chartUid, localRoot);
-			// modify chart from xlsx
-		}
-	}
-
-
-	private String makeRelsPath(String chartXmlPath) {
-		String name = FilenameUtils.getName(chartXmlPath);
-		String path = FilenameUtils.getPath(chartXmlPath);
-
-		return FilenameUtils.concat(FilenameUtils.concat(path, "_rels"), name + ".rels");
-	}
-
-	private String createChartFromExisting(OOXMLPackage pkg, String chartXmlPath, String chartUid) {
-		InputStream f = null;
-		try {
-			String embeddedXlsxRid = null;
-			String embeddedXlsxFile = null;
-
-			f = new FileInputStream(new File(pkg.getDataDir(), chartXmlPath));
-			Document doc = newDocumentBuilder().parse(f);
-
-			XPath xpath = newXPath(doc);
-			NodeList nodeList = evaluateXPath(xpath, "//c:externalData", doc);
-			if (nodeList.getLength() != 0) {
-				Node n = nodeList.item(0);
-				Node attrRid = n.getAttributes().getNamedItem("r:id");
-				if (attrRid == null)
-					throw new IllegalStateException(String.format("no Target externalData in %s", chartXmlPath));
-				embeddedXlsxRid = attrRid.getTextContent();
-			}
-
-			XMLDocHelper.save(doc, new File(pkg.getDataDir(), makeNewChartFilename(chartXmlPath, chartUid)), true);
-
-			f.close();
-
-			f = new FileInputStream(new File(pkg.getDataDir(), makeRelsPath(chartXmlPath)));
-			doc = newDocumentBuilder().parse(f);
-			xpath = newXPath(doc);
-			if (embeddedXlsxRid != null) {
-				NodeList rsNodes = evaluateXPath(xpath, "//:Relationship[@Id='" + embeddedXlsxRid + "']", doc);
-				if (rsNodes.getLength() != 0) {
-					Node n = rsNodes.item(0);
-					embeddedXlsxFile = FilenameUtils.concat("word/charts", n.getAttributes().getNamedItem("Target").getTextContent());
-					String relTarget = makeXlsxRelTarget(chartXmlPath, makeNewXlsxFilename(embeddedXlsxFile, chartUid));
-					n.getAttributes().getNamedItem("Target").setTextContent(FilenameUtils.separatorsToUnix(relTarget));
-				}
-			}
-			XMLDocHelper.save(doc,
-					new File(pkg.getDataDir(), makeRelsPath(makeNewChartFilename(chartXmlPath, chartUid))), true);
-
-			return embeddedXlsxFile;
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			CloseableHelper.safeClose(f);
-		}
-
-		return null;
-	}
-
-	private String makeXlsxRelTarget(String chartXmlPath, String xlsxFilename) {
-		// TODO: use reliable relative path logic
-		return "../embeddings/" + FilenameUtils.getName(xlsxFilename);
-	}
-
-
-	private String makeNewChartFilename(String chartXmlPath, String chartUid) {
-		// trim right ".xml"
-		String s = chartXmlPath.substring(0, chartXmlPath.length() - 4);
-		s += "_" + chartUid + "." + DOCXCOD_CHART_XML_EXT;
-		return s;
-	}
-
-	private String appendToRels(OOXMLPackage pkg, String relPath, String originalRid, String chartUid) {
-		InputStream f = null;
-		try {
-			f = new FileInputStream(new File(pkg.getDataDir(), relPath));
-			Document doc = newDocumentBuilder().parse(f);
-
-			XPath xpath = newXPath(doc);
-			NodeList nodeList = evaluateXPath(xpath, "//:Relationship[@Id='" + originalRid + "']", doc);
-			String chartXmlPath = null;
-			if (nodeList.getLength() != 0) {
-				Node n = nodeList.item(0);
-
-				Node attrTarget = n.getAttributes().getNamedItem("Target");
-				if (attrTarget == null)
-					throw new IllegalStateException(String.format("no Target attribute in %s with rid %s", relPath,
-							originalRid));
-				chartXmlPath = attrTarget.getTextContent();
-
-				Node attrType = n.getAttributes().getNamedItem("Type");
-				if (attrType == null)
-					throw new IllegalStateException(String.format("no Type attribute in %s with rid %s", relPath,
-							originalRid));
-				String type = attrType.getTextContent();
-
-				Element newChild = doc.createElement("Relationship");
-
-				newChild.setAttribute("Id", originalRid + "_" + chartUid);
-				newChild.setAttribute("Target",
-						FilenameUtils.separatorsToUnix(makeNewChartFilename(chartXmlPath, chartUid)));
-				newChild.setAttribute("Type", type);
-				doc.getFirstChild().appendChild(newChild);
-			} else {
-				return null;
-			}
-
-			XMLDocHelper.save(doc, new File(pkg.getDataDir(), relPath), true);
-
-			return chartXmlPath;
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			CloseableHelper.safeClose(f);
-		}
-
-		return null;
-	}
-
-	private String makeNewXlsxFilename(String embeddedXlsxFile, String chartUid) {
-		String path = FilenameUtils.getPath(embeddedXlsxFile);
-		String basename = FilenameUtils.getBaseName(embeddedXlsxFile);
-		String ext = FilenameUtils.getExtension(embeddedXlsxFile);
-		
-		return path + basename + "_" + chartUid + "." + ext;
-	}
-
-	private void createNewEmbeddedXlsx(OOXMLPackage pkg, String embeddedXlsxFile, String chartUid, Map<String, Object> localRoot) {
-		OOXMLPackage xlsx = new OOXMLPackage();
-		FileInputStream is = null;
-		FileOutputStream os = null;
-		try {
-			is = new FileInputStream(new File(pkg.getDataDir(), embeddedXlsxFile));
-			xlsx.load(is);
-
-			os = new FileOutputStream(new File(pkg.getDataDir(), makeNewXlsxFilename(embeddedXlsxFile, chartUid)));
-			xlsx.save(os);
-
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			CloseableHelper.safeClose(is);
-			CloseableHelper.safeClose(os);
-		}
-
-	}
-
-	private void appendContentType(OOXMLPackage pkg) {
-		InputStream f = null;
-		try {
-			f = new FileInputStream(new File(pkg.getDataDir(), CONTENT_TYPES_XML));
-			Document doc = newDocumentBuilder().parse(f);
-
-			XPath xpath = newXPath(doc);
-			NodeList nodeList = evaluateXPath(xpath, "//:Default[@Extension='" + DOCXCOD_CHART_XML_EXT + "']", doc);
-			if (nodeList.getLength() == 0) {
-				Element newChild = doc.createElement("Default");
-				newChild.setAttribute("ContentType", CHART_XML_CONTENTTYPE);
-				newChild.setAttribute("Extension", DOCXCOD_CHART_XML_EXT);
-				doc.getFirstChild().appendChild(newChild);
-			}
-
-			XMLDocHelper.save(doc, new File(pkg.getDataDir(), CONTENT_TYPES_XML), true);
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			CloseableHelper.safeClose(f);
-		}
-	}
 
 	@Override
 	public void process(OOXMLPackage pkg, Map<String, Object> rootMap) {
@@ -296,7 +340,7 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 
 			NodeList nodeList = evaluateXPath(xpath, "//c:chart", doc);
 
-			for (Node n : new NodeListWrapper(nodeList)) {
+			for (Node n : new NodeListIterAdapter(nodeList)) {
 				InsertChartHelperMagicNode(doc, n);
 			}
 
@@ -318,9 +362,14 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 		Node attrRid = chartNode.getAttributes().getNamedItem("r:id");
 		String originalRid = attrRid.getTextContent();
 		logger.info("chart rid: {}", originalRid);
-		// ChartUidFunction returns unique incremental integer value for consecutive same originalRid
-		appendSiblingToTheParent(chartNode, "w:drawing", AsttpPos.BEFORE,
-				getMagicNode(doc, String.format("#assign curChartUid=%s(\'%s\')", ChartUidFunction.functionName, originalRid)));
+		// ChartUidFunction returns unique incremental integer value for
+		// consecutive same originalRid
+		appendSiblingToTheParent(
+				chartNode,
+				"w:drawing",
+				AsttpPos.BEFORE,
+				getMagicNode(doc,
+						String.format("#assign curChartUid=%s(\'%s\')", ChartUidFunction.functionName, originalRid)));
 		attrRid.setTextContent(String.format("${%s(\'%s\', curChartUid)}", ChartResFunction.functionName, originalRid));
 	}
 

@@ -24,7 +24,7 @@ import org.custommonkey.xmlunit.Diff;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -58,7 +58,7 @@ public class XMLTest {
 
 		NodeList nodeList = evaluateXPathExpr(expr, doc);
 		//		System.out.println(nodeList.getLength());
-		for (@SuppressWarnings("unused") Node node : new NodeListWrapper(nodeList)) {
+		for (@SuppressWarnings("unused") Node node : new NodeListIterAdapter(nodeList)) {
 			//			System.out.println(node.getNodeName());
 			//			NodeList attrs = evaluateXPathExpr(attrsExpr, node);
 			//			for (Node attr: new NodeListWrapper(attrs)) {
@@ -92,7 +92,7 @@ public class XMLTest {
 			XPath xpath = newXPath(doc);
 
 			NodeList nodeList = evaluateXPath(xpath, "/w:document[1]/w:body[1]/w:p[2]/w:r[1]/w:t[1]", doc);
-			for (Node node : new NodeListWrapper(nodeList)) {
+			for (Node node : new NodeListIterAdapter(nodeList)) {
 				Node targetPara = node.getParentNode().getParentNode();
 				Node parentOfPara = targetPara.getParentNode();
 				parentOfPara.insertBefore(getMagicNode(doc), targetPara);
@@ -126,14 +126,14 @@ public class XMLTest {
 			{
 				NodeList nodeList = evaluateXPath(xpath, "//w:fldSimple/@w:instr", doc);
 				System.out.printf("fldSimple cnt: %d\n", nodeList.getLength());
-				for (Node n : new NodeListWrapper(nodeList)) {
+				for (Node n : new NodeListIterAdapter(nodeList)) {
 					System.out.println(n.getNodeValue());
 				}
 			}
 			{
 				NodeList nodeList = evaluateXPath(xpath, "//w:instrText", doc);
 				System.out.printf("instrText cnt: %d\n", nodeList.getLength());
-				for (Node n : new NodeListWrapper(nodeList)) {
+				for (Node n : new NodeListIterAdapter(nodeList)) {
 					System.out.println(n.getTextContent());
 				}
 			}

@@ -1,8 +1,8 @@
 package org.krakenapps.docxcod.util;
 
-import static org.krakenapps.docxcod.util.XMLDocHelper.evaluateXPath;
-
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Iterator;
 
@@ -12,7 +12,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.TransformerFactoryConfigurationError;
@@ -24,10 +23,13 @@ import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 
+import org.krakenapps.docxcod.OOXMLPackage;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import static org.krakenapps.docxcod.util.CloseableHelper.safeClose;
 
 public class XMLDocHelper {
 	static private DocumentBuilderFactory dbFactory;
@@ -68,7 +70,7 @@ public class XMLDocHelper {
 				XPath xpath = xpathFactory.newXPath();
 				NodeList nodeList_ = evaluateXPath(xpath, "//*/namespace::*", doc);
 
-				for (Node n : new NodeListWrapper(nodeList_)) {
+				for (Node n : new NodeListIterAdapter(nodeList_)) {
 					String nsName = n.getNodeName();
 					String nsURI = n.getTextContent();
 					if (nsName.length() > 6) {
@@ -117,10 +119,10 @@ public class XMLDocHelper {
 		return (NodeList) xpath.evaluate(node, XPathConstants.NODESET);
 	}
 
-	public static class NodeListWrapper implements Iterable<Node> {
+	public static class NodeListIterAdapter implements Iterable<Node> {
 		private final NodeList nl;
 
-		public NodeListWrapper(NodeList nl) {
+		public NodeListIterAdapter(NodeList nl) {
 			this.nl = nl;
 		}
 
@@ -164,7 +166,7 @@ public class XMLDocHelper {
 
 		XPath xpath = newXPath(doc);
 
-		for (Node n : new NodeListWrapper(evaluateXPath(xpath, "//text()[normalize-space(.)='']", doc))) {
+		for (Node n : new NodeListIterAdapter(evaluateXPath(xpath, "//text()[normalize-space(.)='']", doc))) {
 			n.getParentNode().removeChild(n);
 		}
 
@@ -174,4 +176,39 @@ public class XMLDocHelper {
 		transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
 		transformer.transform(new DOMSource(doc), new StreamResult(file));
 	}
+	
+	public static Document parseXml(OOXMLPackage pkg, String path) {
+		InputStream is = null;
+		try {
+			is = new FileInputStream(new File(pkg.getDataDir(), path));
+			Document doc = newDocumentBuilder().parse(is);
+
+			return doc;
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			safeClose(is);
+		}
+
+		return null;
+	}
+
+	public static String getNodeAttribute(Node n, String attrName) {
+		Node namedAttr = n.getAttributes().getNamedItem(attrName);
+		if (namedAttr != null)
+			return namedAttr.getNodeValue();
+		else
+			return null;
+	}
+
+	public static void setNodeAttribute(Document doc, Node n, String attrName, String value) {
+		Node namedAttr = n.getAttributes().getNamedItem(attrName);
+		if (namedAttr == null) {
+			namedAttr = doc.createAttribute(attrName);
+			n.getAttributes().setNamedItem(namedAttr);
+		}
+		namedAttr.setNodeValue(value);
+	}
+
+
 }

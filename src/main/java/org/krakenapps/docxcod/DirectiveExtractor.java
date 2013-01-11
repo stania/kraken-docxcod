@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.xpath.XPath;
 
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -82,7 +82,7 @@ public class DirectiveExtractor implements OOXMLProcessor {
 		String mergedDirective = null;
 		Node directivePosition = null;
 
-		for (Node n : new NodeListWrapper(nodeList)) {
+		for (Node n : new NodeListIterAdapter(nodeList)) {
 			if (n.getNodeName().equals("w:fldChar")) {
 				String fldCharType = n.getAttributes().getNamedItem("w:fldCharType").getNodeValue();
 				if (fldCharType.equals("begin")) {

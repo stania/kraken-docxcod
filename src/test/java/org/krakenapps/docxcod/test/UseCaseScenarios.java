@@ -50,7 +50,7 @@ public class UseCaseScenarios {
 		List<OOXMLProcessor> processors = new ArrayList<OOXMLProcessor>();
 		processors.add(new MergeFieldParser());
 		processors.add(new ChartDirectiveParser());
-		processors.add(new FreeMarkerRunner(rootMap));
+		processors.add(new FreeMarkerRunner());
 
 		for (OOXMLProcessor processor : processors) {
 			processor.process(docx, rootMap);

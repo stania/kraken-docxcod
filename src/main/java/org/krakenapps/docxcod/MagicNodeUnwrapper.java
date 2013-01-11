@@ -22,6 +22,12 @@ public class MagicNodeUnwrapper implements OOXMLProcessor {
 	private static Pattern MAGICNODE_PTRN_DRCTV = Pattern.compile("<KMagicNode><!\\[CDATA\\[(#(.*)|\\/#(.*)|@(.*))\\]\\]><\\/KMagicNode>");
 	private static Pattern MAGICNODE_PTRN_EXPR = Pattern.compile("<KMagicNode><!\\[CDATA\\[(.*)\\]\\]><\\/KMagicNode>");
 
+	private final String targetPath;
+	
+	public MagicNodeUnwrapper(String targetPath) {
+		this.targetPath = targetPath;
+	}
+
 	@Override
 	public void process(OOXMLPackage pkg, Map<String, Object> rootMap) {
 		/*
@@ -38,7 +44,7 @@ public class MagicNodeUnwrapper implements OOXMLProcessor {
 		FileInputStream fis = null;
 
 		try {
-			File docXml = new File(pkg.getDataDir(), "word/document.xml");
+			File docXml = new File(pkg.getDataDir(), targetPath);
 			File newDocXml = new File(docXml + ".new");
 
 			fis = new FileInputStream(docXml);

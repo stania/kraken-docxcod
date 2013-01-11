@@ -1,60 +1,38 @@
 package org.krakenapps.docxcod;
 
+import static org.krakenapps.docxcod.util.XMLDocHelper.evaluateXPath;
+import static org.krakenapps.docxcod.util.XMLDocHelper.newXPath;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathExpressionException;
+
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 public class Utils {
 
-	public static void saveReport(RptOutput mergedOutput, File outputFile) throws FileNotFoundException {
-		FileOutputStream rptOutputStream = null;
-		InputStream rptInputStream = null;
-		try {
-			rptOutputStream = new FileOutputStream(outputFile);
-			rptInputStream = mergedOutput.createInputStream();
-			copyStream(rptInputStream, rptOutputStream);
-		} finally {
-			closeStream(rptOutputStream);
-			closeStream(rptInputStream);
-		}
-	}
+	public static List<String> readSharedStrings(Document sharedStringsDoc) throws XPathExpressionException {
+		ArrayList<String> list = new ArrayList<String>();
 
-	private static void copyStream(InputStream inputStream, OutputStream rptOutputStream) {
-		byte[] buf = new byte[8192];
-		int readCnt = 0;
-		try {
-			do {
-				readCnt = inputStream.read(buf);
-				if (readCnt == -1)
-					break;
-				else {
-					rptOutputStream.write(buf, 0, readCnt);
-				}
-			} while (readCnt != 0);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+		XPath xpath = newXPath(sharedStringsDoc);
 
-	private static void closeStream(InputStream is) {
-		try {
-			if (is != null)
-				is.close();
-		} catch (IOException e) {
-			// ignore
+		NodeList nodes = evaluateXPath(xpath, "//DEF:si/DEF:t", sharedStringsDoc);
+		for (Node n : new NodeListIterAdapter(nodes)) {
+			list.add(n.getTextContent());
 		}
-	}
 
-	private static void closeStream(OutputStream os) {
-		try {
-			if (os != null)
-				os.close();
-		} catch (IOException e) {
-			// ignore
-		}
+		return list;
 	}
 
 }

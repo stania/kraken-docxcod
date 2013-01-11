@@ -13,7 +13,7 @@ import java.util.Map;
 import javax.xml.xpath.XPath;
 
 import org.krakenapps.docxcod.util.XMLDocHelper;
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -41,7 +41,7 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 			XPath xpath = newXPath(doc);
 			NodeList nodeList = evaluateXPath(xpath, "//KMagicNode", doc);
 
-			for (Node n : new NodeListWrapper(nodeList)) {
+			for (Node n : new NodeListIterAdapter(nodeList)) {
 				String directive = n.getTextContent();
 				if (directive.charAt(0) != '@')
 					continue;

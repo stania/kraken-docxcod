@@ -7,8 +7,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
+import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,11 +22,14 @@ import freemarker.template.TemplateException;
 
 public class FreeMarkerRunner implements OOXMLProcessor {
 	private Logger logger = LoggerFactory.getLogger(getClass().getName());
-	private final Map<String, Object> data;
+	private Set<String> targets = new HashSet<String>();
 
-	public FreeMarkerRunner(Map<String, Object> data)
+	public FreeMarkerRunner()
 	{
-		this.data = data;
+	}
+
+	public FreeMarkerRunner(String string) {
+		targets.add(FilenameUtils.normalize(string));
 	}
 
 	@Override
@@ -33,6 +39,10 @@ public class FreeMarkerRunner implements OOXMLProcessor {
 		cfg.setObjectWrapper(new DefaultObjectWrapper());
 
 		for (String s : docx.listParts("")) {
+			
+			if (!targets.isEmpty() && !targets.contains(s))
+				continue;
+			
 			InputStreamReader templateReader = null;
 			
 			PrintWriter writer = null;
@@ -43,7 +53,7 @@ public class FreeMarkerRunner implements OOXMLProcessor {
 				writer = new PrintWriter(new FileOutputStream(outf));
 				logger.info("process: try freemarker template processing: {}", sf);
 				Template t = new Template(s, templateReader, cfg);
-				t.process(data, writer);
+				t.process(rootMap, writer);
 				logger.trace("process: freemarker template processing completed");
 				safeClose(writer);
 				safeClose(templateReader);

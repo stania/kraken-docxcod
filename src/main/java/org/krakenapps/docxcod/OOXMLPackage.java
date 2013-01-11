@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.zip.ZipOutputStream;
@@ -35,7 +36,7 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.apache.commons.io.FilenameUtils;
-import org.krakenapps.docxcod.util.XMLDocHelper.NodeListWrapper;
+import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.krakenapps.docxcod.util.ZipHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,7 +111,7 @@ public class OOXMLPackage {
 				try {
 					XPath xpath = newXPath(doc);
 					NodeList nodeList = evaluateXPath(xpath, "//DEF:Relationship", doc);
-					for (Node n : new NodeListWrapper(nodeList)) {
+					for (Node n : new NodeListIterAdapter(nodeList)) {
 						NamedNodeMap attrs = n.getAttributes();
 						Relationship rel = new Relationship(parent, attrs);
 						parent.children.add(rel);
@@ -359,6 +360,16 @@ public class OOXMLPackage {
 					chartOs.close();
 				} catch (IOException e) {
 				}
+		}
+	}
+
+	public void apply(List<OOXMLProcessor> processors, Map<String, Object> rootMap) {
+		for (OOXMLProcessor processor : processors) {
+			try {
+				processor.process(this, rootMap);
+			} catch (Exception e) {
+				logger.warn("Unexpected exception in OOXMLProcessor: " + processor.toString(), e);
+			}
 		}
 	}
 }
