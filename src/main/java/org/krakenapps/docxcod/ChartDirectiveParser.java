@@ -20,24 +20,30 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
 import org.krakenapps.docxcod.util.CloseableHelper;
 import org.krakenapps.docxcod.util.XMLDocHelper;
 import org.krakenapps.docxcod.util.XMLDocHelper.NodeListIterAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+
 import freemarker.core.Environment;
 import freemarker.template.TemplateMethodModelEx;
 import freemarker.template.TemplateModelException;
-import freemarker.template.utility.Collections12;
 
 public class ChartDirectiveParser implements OOXMLProcessor {
 	// returns unique incremental integer value for consecutive same originalRid
@@ -100,7 +106,8 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 		}
 
 		private void updateChartXML(String chartXmlPath, ArrayList<CellData> cells)
-				throws UnsupportedDocumentException, XPathExpressionException {
+				throws UnsupportedDocumentException, XPathExpressionException, DOMException,
+				TransformerFactoryConfigurationError, TransformerException {
 			if (cells == null)
 				throw new UnsupportedDocumentException("cannot obtain cell data from copied chart");
 
@@ -110,6 +117,7 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 			updateRef("str", chartDoc, xpath, cells);
 			updateRef("num", chartDoc, xpath, cells);
 
+			XMLDocHelper.save(chartDoc, new File(pkg.getDataDir(), chartXmlPath), true);
 		}
 
 		private void updateRef(String pf, Document chartDoc, XPath xpath, ArrayList<CellData> cells)
@@ -125,7 +133,9 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 				if (!formula.startsWith("Sheet1!"))
 					throw new UnsupportedDocumentException("cannot update chart cache: not referencing Sheet1");
 
-				ArrayList<CellData> data = getDataFromRange1D(cells, formula);
+				ArrayList<CellData> data = getColumnDataFromRange1D(cells, formula);
+
+				fNode.setTextContent(getModifiedFormula(formula, data.size()));
 
 				Node ptCountNode = evaluateXPath(xpath, String.format("c:%sCache/c:ptCount", pf), n).item(0);
 				XMLDocHelper.setNodeAttribute(chartDoc, ptCountNode, "val", Integer.toString(data.size()));
@@ -136,55 +146,118 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 
 				Node ptNode = ptNodes.item(0).cloneNode(true);
 				Node cacheNode = ptNodes.item(0).getParentNode();
-				for (Node c: new NodeListIterAdapter(ptNodes)) {
+				for (Node c : new NodeListIterAdapter(ptNodes)) {
 					c.getParentNode().removeChild(c);
 				}
 				int idx = 0;
-				for (CellData d : data) {
+				if (data.isEmpty()) {
+					// if chart contains no data, add 1 cell which contains 0
 					Node newPtNode = cacheNode.appendChild(ptNode.cloneNode(true));
 					XMLDocHelper.setNodeAttribute(chartDoc, newPtNode, "idx", Integer.toString(idx++));
 					Node vNode = evaluateXPath(xpath, "c:v", newPtNode).item(0);
-					vNode.setTextContent(d.data);
+					vNode.setTextContent("0");
+				} else {
+					// normal case
+					for (CellData d : data) {
+						Node newPtNode = cacheNode.appendChild(ptNode.cloneNode(true));
+						XMLDocHelper.setNodeAttribute(chartDoc, newPtNode, "idx", Integer.toString(idx++));
+						Node vNode = evaluateXPath(xpath, "c:v", newPtNode).item(0);
+						vNode.setTextContent(d.data);
+					}
 				}
 			}
 		}
 
+		private String getModifiedFormula(String formula, int size) {
+			/*
+			 * ex input of formula: Sheet1!$B$2:$B$4 ex input of size: 0
+			 */
+			if (size == 0)
+				size = 1; // fix errorneous data
+
+			Matcher matcher = cellAbsAddressPattern.matcher(formula);
+			if (matcher.matches()) {
+				int startRow = Integer.parseInt(matcher.group(2));
+				formula = formula.substring(0, matcher.start(4)) + Integer.toString(startRow + size - 1)
+						+ formula.substring(matcher.end(4));
+			}
+			return formula;
+		}
+
 		private final Pattern cellAddressPattern = Pattern.compile("([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)");
+		private final Pattern cellAbsAddressPattern = Pattern
+				.compile("Sheet1!\\$([A-Z]+)\\$([0-9]+):\\$([A-Z]+)\\$([0-9]+)");
 		private final Pattern cellAddressPattern2 = Pattern.compile("([A-Z]+)([0-9]+)");
-		
-		private ArrayList<CellData> getDataFromRange1D(ArrayList<CellData> cells, String formula) throws UnsupportedDocumentException {
+
+		private ArrayList<CellData> getColumnDataFromRange1D(ArrayList<CellData> cells, String formula)
+				throws UnsupportedDocumentException {
 			// formula example: Sheet1!$A$2:$A$4, "Sheet1!" is asserted.
 			formula = formula.substring(7); // $A$2:$A$4
 			formula = formula.replace("$", ""); // A2:A4
-			
+
 			if (formula.indexOf(":") < 0)
 				formula = formula + ":" + formula;
-			
+
 			Matcher matcher = cellAddressPattern.matcher(formula);
 			if (matcher.matches()) {
 				String colId = matcher.group(1);
 				int rowStart = Integer.parseInt(matcher.group(2));
-				int rowEnd = Integer.parseInt(matcher.group(4)) + 1;
-				
-				ArrayList<CellData> data = new ArrayList<CellData>(rowEnd - rowStart);
-				
-				for (CellData cell: cells) {
-					Matcher addrMatcher = cellAddressPattern2.matcher(cell.address);
-					if (addrMatcher.matches()) {
-						String cellColId = addrMatcher.group(1);
-						if (!cellColId.equals(colId))
-							continue;
+				int rowEnd = Integer.parseInt(matcher.group(4));
 
-						int cellRow = Integer.parseInt(addrMatcher.group(2));
-						if (rowStart <= cellRow && cellRow < rowEnd) {
+				ArrayList<CellData> data = new ArrayList<CellData>();
+
+				if (rowStart == rowEnd) {
+					String targetAddr = String.format("%s%d", colId, rowStart);
+					for (CellData cell : cells) {
+						if (targetAddr.equals(cell.address)) {
 							data.add(cell);
-						}	
+							break;
+						}
 					}
+
+					return data;
+				} else {
+
+					for (CellData cell : cells) {
+						Matcher addrMatcher = cellAddressPattern2.matcher(cell.address);
+						if (addrMatcher.matches()) {
+							String cellColId = addrMatcher.group(1);
+							if (!cellColId.equals(colId))
+								continue;
+
+							int cellRow = Integer.parseInt(addrMatcher.group(2));
+							if (rowStart <= cellRow) {
+								data.add(cell);
+							}
+						}
+					}
+
+					Collections.sort(data);
+
+					// filter cells containing data continuously
+					data = new ArrayList<CellData>(Collections2.filter(data, new Predicate<CellData>() {
+						int prevRow = 0;
+
+						@Override
+						public boolean apply(CellData input) {
+							int rowIdx = Integer.parseInt(input.address.substring(StringUtils.indexOfAny(input.address,
+									"0123456789")));
+							if (prevRow == 0) {
+								prevRow = rowIdx;
+								return true;
+							} else {
+								if (rowIdx - prevRow == 1) {
+									prevRow = rowIdx;
+									return true;
+								} else {
+									return false;
+								}
+							}
+						}
+					}));
+
+					return data;
 				}
-				
-				Collections.sort(data);
-				
-				return data;
 			} else {
 				throw new UnsupportedDocumentException("internal error: cannot match cell formula");
 			}
@@ -234,7 +307,7 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 				ArrayList<CellData> cells = createNewEmbeddedXlsx(pkg, embeddedXlsxPath, chartUid, localRoot);
 
 				// update strRef/numRef in chart xml with embeddedXlsx
-				updateChartXML(chartXmlPath, cells);
+				updateChartXML(makeNewChartFilename(chartXmlPath, chartUid), cells);
 			} else {
 				throw new Exception("cannot append rels entry in document.xml.rels");
 			}
