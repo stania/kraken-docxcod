@@ -38,7 +38,7 @@ public class UseCaseScenarios {
 	public void testScenario1() throws Exception {
 		File targetDir = new File("mainTest");
 		targetDir.mkdirs();
-//		tearDownHelper.add(targetDir);
+		tearDownHelper.add(targetDir);
 
 		OOXMLPackage docx = new OOXMLPackage();
 		docx.load(getClass().getResourceAsStream("/nestedList2.docx"), targetDir);
@@ -50,7 +50,7 @@ public class UseCaseScenarios {
 		List<OOXMLProcessor> processors = new ArrayList<OOXMLProcessor>();
 		processors.add(new MergeFieldParser());
 		processors.add(new ChartDirectiveParser());
-		processors.add(new FreeMarkerRunner());
+		processors.add(new FreeMarkerRunner("word/document.xml"));
 
 		for (OOXMLProcessor processor : processors) {
 			processor.process(docx, rootMap);

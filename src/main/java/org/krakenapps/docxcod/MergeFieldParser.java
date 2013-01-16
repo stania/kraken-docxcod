@@ -126,6 +126,7 @@ public class MergeFieldParser implements OOXMLProcessor {
 //			}
 			parent.removeChild(n);
 		} else if (n.getNodeName().equals("w:fldChar")) {
+			logger.debug("fldChar found");
 			// @formatter:off
 			/*
             <w:r>

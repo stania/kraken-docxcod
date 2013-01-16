@@ -131,7 +131,7 @@ public class DocxTest {
 		processors.add(new MergeFieldParser());
 		processors.add(new AugmentedDirectiveProcessor());
 		processors.add(new MagicNodeUnwrapper("word/document.xml"));
-		processors.add(new FreeMarkerRunner());
+		processors.add(new FreeMarkerRunner("word/document.xml"));
 
 		for (OOXMLProcessor processor : processors) {
 			processor.process(docx, rootMap);

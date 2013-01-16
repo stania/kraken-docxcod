@@ -7,8 +7,6 @@ import static org.krakenapps.docxcod.util.XMLDocHelper.newXPath;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -326,41 +324,6 @@ public class OOXMLPackage {
 		logger.debug("result : " + result);
 
 		return (String[]) result.toArray(new String[0]);
-	}
-
-	public static void main(String[] args) {
-		FileOutputStream os = null;
-		FileOutputStream chartOs = null;
-		try {
-			OOXMLPackage pkg = new OOXMLPackage();
-			OOXMLPackage chart = null;
-
-			pkg.attach(new File(args[0]));
-			chart = new OOXMLPackage();
-			File xlsxExtracted = new File(args[0], "word/embeddings/Microsoft_Excel_____1.xlsx.extracted");
-			if (xlsxExtracted.exists())
-			{
-				chartOs = new FileOutputStream(new File(args[0], "word/embeddings/Microsoft_Excel_____1.xlsx"));
-				chart.attach(xlsxExtracted);
-				chart.save(chartOs);
-			}
-			os = new FileOutputStream(new File(args[0] + "_mods.docx"));
-			pkg.save(os);
-			System.out.println(args[0] + "_mods.docx saved.");
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} finally {
-			if (os != null)
-				try {
-					os.close();
-				} catch (IOException e) {
-				}
-			if (chartOs != null)
-				try {
-					chartOs.close();
-				} catch (IOException e) {
-				}
-		}
 	}
 
 	public void apply(List<OOXMLProcessor> processors, Map<String, Object> rootMap) {

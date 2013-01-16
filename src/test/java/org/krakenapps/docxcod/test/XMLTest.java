@@ -8,7 +8,6 @@ import static org.krakenapps.docxcod.util.XMLDocHelper.newXPath;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 
 import javax.xml.transform.OutputKeys;
@@ -57,18 +56,12 @@ public class XMLTest {
 		XPathExpression expr = xpath.compile("//DEF:Relationship");
 
 		NodeList nodeList = evaluateXPathExpr(expr, doc);
-		//		System.out.println(nodeList.getLength());
 		for (@SuppressWarnings("unused") Node node : new NodeListIterAdapter(nodeList)) {
-			//			System.out.println(node.getNodeName());
-			//			NodeList attrs = evaluateXPathExpr(attrsExpr, node);
-			//			for (Node attr: new NodeListWrapper(attrs)) {
-			//				System.out.println("\t" + attr);
-			//			}
 		}
 
 		Transformer transformer = TransformerFactory.newInstance().newTransformer();
-		//		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-		//		transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+		transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
 		transformer.transform(new DOMSource(doc), new StreamResult("test.xml"));
 		tearDownHelper.add(new File("test.xml"));
 		{
@@ -112,52 +105,6 @@ public class XMLTest {
 			checkNodeName(genDoc, xpath, "/w:document[1]/w:body[1]/*[2]", "KMagicNode");
 			checkNodeName(genDoc, xpath, "/w:document[1]/w:body[1]/*[3]", "w:p");
 			checkNodeName(genDoc, xpath, "/w:document[1]/w:body[1]/*[4]", "KMagicNode");
-		}
-	}
-
-	public void xmlTest3() throws Exception {
-		InputStream f = null;
-		try {
-			f = getClass().getResourceAsStream("/nestedList/word/document.xml");
-			Document doc = newDocumentBuilder().parse(f);
-			assertTrue(doc != null);
-
-			XPath xpath = newXPath(doc);
-			{
-				NodeList nodeList = evaluateXPath(xpath, "//w:fldSimple/@w:instr", doc);
-				System.out.printf("fldSimple cnt: %d\n", nodeList.getLength());
-				for (Node n : new NodeListIterAdapter(nodeList)) {
-					System.out.println(n.getNodeValue());
-				}
-			}
-			{
-				NodeList nodeList = evaluateXPath(xpath, "//w:instrText", doc);
-				System.out.printf("instrText cnt: %d\n", nodeList.getLength());
-				for (Node n : new NodeListIterAdapter(nodeList)) {
-					System.out.println(n.getTextContent());
-				}
-			}
-
-			Transformer transformer = TransformerFactory.newInstance().newTransformer();
-			transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-			transformer.setOutputProperty(OutputKeys.CDATA_SECTION_ELEMENTS, "yes");
-			transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			safeClose(f);
-		}
-
-	}
-
-	private void safeClose(InputStream f) {
-		if (f == null)
-			return;
-		try {
-			f.close();
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
 	}
 
