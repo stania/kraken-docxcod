@@ -3,12 +3,6 @@ package org.krakenapps.docxcod;
 import static org.krakenapps.docxcod.util.XMLDocHelper.evaluateXPath;
 import static org.krakenapps.docxcod.util.XMLDocHelper.newXPath;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 

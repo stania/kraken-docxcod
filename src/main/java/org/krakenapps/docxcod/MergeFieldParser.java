@@ -31,6 +31,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 public class MergeFieldParser implements OOXMLProcessor {
+	
 	private Logger logger = LoggerFactory.getLogger(getClass().getName());
 
 	public void process(OOXMLPackage pkg, Map<String, Object> rootMap) {
