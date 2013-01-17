@@ -43,37 +43,6 @@ public class XMLTest {
 	}
 
 	@Test
-	public void xmlTest() throws Exception {
-		String sourcePath = "/sampledoc/_rels/.rels";
-		InputStream f = getClass().getResourceAsStream(sourcePath);
-		assertTrue(f != null);
-
-		Document doc = newDocumentBuilder().parse(f);
-		assertTrue(doc != null);
-
-		XPath xpath = newXPath(doc);
-
-		XPathExpression expr = xpath.compile("//DEF:Relationship");
-
-		NodeList nodeList = evaluateXPathExpr(expr, doc);
-		for (@SuppressWarnings("unused") Node node : new NodeListIterAdapter(nodeList)) {
-		}
-
-		Transformer transformer = TransformerFactory.newInstance().newTransformer();
-		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-		transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-		transformer.transform(new DOMSource(doc), new StreamResult("test.xml"));
-		tearDownHelper.add(new File("test.xml"));
-		{
-			InputStream s1 = getClass().getResourceAsStream(sourcePath);
-			InputStream s2 = new FileInputStream("test.xml");
-			assertTrue(new Diff(new InputSource(s1), new InputSource(s2)).similar());
-			s1.close();
-			s2.close();
-		}
-	}
-
-	@Test
 	public void xmlTest2() throws Exception {
 		InputStream f = getClass().getResourceAsStream("/sampledoc/word/document.xml");
 		assertTrue(f != null);

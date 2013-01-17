@@ -51,10 +51,8 @@ public class UseCaseScenarios {
 		processors.add(new MergeFieldParser());
 		processors.add(new ChartDirectiveParser());
 		processors.add(new FreeMarkerRunner("word/document.xml"));
-
-		for (OOXMLProcessor processor : processors) {
-			processor.process(docx, rootMap);
-		}
+		
+		docx.apply(processors, rootMap);
 
 		File saveFile = new File("mainTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));

@@ -24,14 +24,10 @@ public class FreeMarkerRunner implements OOXMLProcessor {
 	private Logger logger = LoggerFactory.getLogger(getClass().getName());
 	private Set<String> targets = new HashSet<String>();
 
-	public FreeMarkerRunner()
-	{
-	}
-
 	public FreeMarkerRunner(String string) {
 		targets.add(FilenameUtils.normalize(string));
 	}
-
+	
 	@Override
 	public void process(OOXMLPackage docx, Map<String, Object> rootMap) {
 		// TODO Auto-generated method stub
