@@ -54,7 +54,7 @@ public class UseCaseScenarios {
 		
 		docx.apply(processors, rootMap);
 
-		File saveFile = new File("mainTest-save.docx");
+		File saveFile = new File(".test/mainTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));
 		//tearDownHelper.add(saveFile);
 		assertTrue(saveFile.exists());
