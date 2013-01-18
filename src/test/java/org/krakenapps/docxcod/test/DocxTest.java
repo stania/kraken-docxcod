@@ -46,7 +46,7 @@ public class DocxTest {
 		tearDownHelper.tearDown();
 	}
 
-	// @Test
+	@Test
 	public void fieldTest() throws IOException {
 		File targetDir = new File(".test/fieldTest");
 		targetDir.mkdirs();
@@ -55,13 +55,9 @@ public class DocxTest {
 		OOXMLPackage docx = new OOXMLPackage();
 		docx.load(getClass().getResourceAsStream("/fieldTest.docx"), targetDir);
 
-		List<OOXMLProcessor> parsers = new ArrayList<OOXMLProcessor>();
 		DirectiveExtractor directiveExtractor = new DirectiveExtractor();
-		parsers.add(directiveExtractor);
 
-		for (OOXMLProcessor parser : parsers) {
-			parser.process(docx, null);
-		}
+		docx.apply(directiveExtractor, null);
 
 		String[] expected = new String[] {
 				"@before-row#list data as a asdfasdfasdsfd",
@@ -71,7 +67,9 @@ public class DocxTest {
 				"@before-row #list .vars[\"stania\"] as a",
 				"asdfadfasdf",
 				"ahsdfl;aksjdflksdjf",
-				"#list asdf as qwer"
+				"#list asdf as qwer",
+				"@before-row#list data as row",
+				"@before-row#list data as row" // there're hidden instrText
 		};
 
 		int cnt = 0;
@@ -89,7 +87,7 @@ public class DocxTest {
 	public void chartTest() throws IOException, JSONException {
 		File targetDir = new File(".test/_chartTest");
 		targetDir.mkdirs();
-		//tearDownHelper.add(targetDir);
+		// tearDownHelper.add(targetDir);
 
 		OOXMLPackage docx = new OOXMLPackage();
 		docx.load(getClass().getResourceAsStream("/chartTest.docx"), targetDir);
@@ -105,20 +103,18 @@ public class DocxTest {
 		processors.add(new MagicNodeUnwrapper("word/document.xml"));
 		processors.add(new FreeMarkerRunner("word/document.xml"));
 
-		for (OOXMLProcessor processor : processors) {
-			processor.process(docx, rootMap);
-		}
+		docx.apply(processors, rootMap);
 
 		File saveFile = new File(".test/chartTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));
-//		tearDownHelper.add(saveFile);
+		// tearDownHelper.add(saveFile);
 	}
 
 	@Test
 	public void mainTest() throws IOException, JSONException {
 		File targetDir = new File(".test/mainTest");
 		targetDir.mkdirs();
-		//tearDownHelper.add(targetDir);
+		// tearDownHelper.add(targetDir);
 
 		OOXMLPackage docx = new OOXMLPackage();
 		docx.load(getClass().getResourceAsStream("/nestedList2.docx"), targetDir);
@@ -133,13 +129,11 @@ public class DocxTest {
 		processors.add(new MagicNodeUnwrapper("word/document.xml"));
 		processors.add(new FreeMarkerRunner("word/document.xml"));
 
-		for (OOXMLProcessor processor : processors) {
-			processor.process(docx, rootMap);
-		}
+		docx.apply(processors, rootMap);
 
 		File saveFile = new File(".test/mainTest-save.docx");
 		docx.save(new FileOutputStream(saveFile));
-//		tearDownHelper.add(saveFile);
+		// tearDownHelper.add(saveFile);
 	}
 
 	@Test
@@ -158,23 +152,24 @@ public class DocxTest {
 		// diff word file
 	}
 
-	// @Test
+	@Test
 	public void extractingTest() throws IOException {
 		File targetDir = new File(".test/extractingTest");
 		targetDir.mkdirs();
 		tearDownHelper.add(targetDir);
 
 		OOXMLPackage docx = new OOXMLPackage();
-		docx.load(getClass().getResourceAsStream("/nestedList2.docx"), targetDir);
+		docx.load(getClass().getResourceAsStream("/extractingTest.docx"), targetDir);
 
-		String[] relPaths = { "", "customXml", "customXml/item1.xml", "customXml/itemProps1.xml", "customXml/_rels",
-				"customXml/_rels/item1.xml.rels", "docProps", "docProps/app.xml", "docProps/core.xml", "word",
-				"word/charts", "word/charts/chart1.xml", "word/charts/_rels", "word/charts/_rels/chart1.xml.rels",
-				"word/document.xml", "word/embeddings", "word/embeddings/Microsoft_Excel_____1.xlsx",
-				"word/endnotes.xml", "word/fontTable.xml", "word/footnotes.xml", "word/settings.xml",
-				"word/styles.xml", "word/stylesWithEffects.xml", "word/theme", "word/theme/theme1.xml",
-				"word/webSettings.xml", "word/_rels", "word/_rels/document.xml.rels", "[Content_Types].xml", "_rels",
-				"_rels/.rels", };
+		String[] relPaths = { "", "[Content_Types].xml", "_rels", "_rels\\.rels", "customXml", "customXml\\_rels",
+				"customXml\\_rels\\item1.xml.rels", "customXml\\item1.xml", "customXml\\itemProps1.xml", "docProps",
+				"docProps\\app.xml", "docProps\\core.xml", "word", "word\\_rels", "word\\_rels\\document.xml.rels",
+				"word\\charts", "word\\charts\\_rels", "word\\charts\\_rels\\chart1.xml.rels",
+				"word\\charts\\chart1.xml", "word\\document.xml", "word\\embeddings",
+				"word\\embeddings\\Microsoft_Excel_____1.xlsx", "word\\endnotes.xml", "word\\fontTable.xml",
+				"word\\footnotes.xml", "word\\settings.xml", "word\\styles.xml", "word\\stylesWithEffects.xml",
+				"word\\theme", "word\\theme\\theme1.xml", "word\\webSettings.xml" };
+
 		ArrayList<File> extractedFiles = new ArrayList<File>();
 		ZipHelper.getFilesRecursivelyIn(targetDir, extractedFiles);
 

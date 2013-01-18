@@ -326,6 +326,13 @@ public class OOXMLPackage {
 		return (String[]) result.toArray(new String[0]);
 	}
 
+	public void apply(OOXMLProcessor processor, Map<String, Object> rootMap) {
+		try {
+			processor.process(this, rootMap);
+		} catch (Exception e) {
+			logger.warn("Unexpected exception in OOXMLProcessor: " + processor.toString(), e);
+		}
+	}
 	public void apply(List<OOXMLProcessor> processors, Map<String, Object> rootMap) {
 		for (OOXMLProcessor processor : processors) {
 			try {
