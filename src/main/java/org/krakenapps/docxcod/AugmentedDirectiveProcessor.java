@@ -27,9 +27,80 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 	static String[] augmentedDirectives = {
 			"@before-row",
 			"@after-row",
-			// "@before-paragraph",
-			// "@after-paragraph"
+			"@row",
+			"@/row",
+			"@before-para",
+			"@after-para",
+			"@para",
+			"@/para",
 	};
+
+	@SuppressWarnings("serial")
+	private static class CannotParseAugmentedDirectiveException extends RuntimeException {
+	}
+
+	private static class AugmentedDirective {
+		private static String[][] augmentedDirectives = {
+				{ "@before-row", "before", "w:tr" },
+				{ "@row", "before", "w:tr" },
+				{ "@after-row", "after", "w:tr" },
+				{ "@/row", "after", "w:tr" },
+				{ "@before-para", "before", "w:p" },
+				{ "@para", "before", "w:p" },
+				{ "@after-para", "after", "w:p" },
+				{ "@/para", "after", "w:p" },
+		};
+		private String prefix;
+		private String remaining;
+		private boolean isBefore;
+		private String expectedParent;
+
+		private AugmentedDirective(String augDirective, String rawDirective, boolean isBefore,
+				String expectedParentElementName) {
+			this.prefix = augDirective;
+			this.remaining = rawDirective.substring(augDirective.length());
+			this.isBefore = isBefore;
+			this.expectedParent = expectedParentElementName;
+		}
+
+		public static AugmentedDirective parseDirective(String directive) {
+
+			if (!directive.startsWith("@"))
+				throw new CannotParseAugmentedDirectiveException();
+
+			for (String[] entry : augmentedDirectives) {
+				String prefix = entry[0];
+
+				if (directive.startsWith(prefix)) {
+					boolean isBefore = "before".equals(entry[1]);
+					String expectedParent = entry[2];
+
+					return new AugmentedDirective(prefix, directive, isBefore, expectedParent);
+				}
+			}
+			throw new CannotParseAugmentedDirectiveException();
+		}
+		
+		public boolean isBefore() {
+			return isBefore;
+		}
+		
+		public String getPrefix() {
+			return prefix;
+		}
+
+		public String getRemaining() {
+			return remaining;
+		}
+		
+		public String getRaw() {
+			return prefix + remaining;
+		}
+
+		public Object getExpectedParent() {
+			return expectedParent;
+		}
+	}
 
 	@Override
 	public void process(OOXMLPackage pkg, Map<String, Object> rootMap) {
@@ -42,49 +113,37 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 			NodeList nodeList = evaluateXPath(xpath, "//KMagicNode", doc);
 
 			for (Node n : new NodeListIterAdapter(nodeList)) {
-				String directive = n.getTextContent();
-				if (directive.charAt(0) != '@')
-					continue;
+				try {
+					AugmentedDirective ad = AugmentedDirective.parseDirective(n.getTextContent());
+					Node runNode;
+					Node parentOfPara = null;
+					Node targetPara = runNode = n.getParentNode().getParentNode(); // maybe w:r
 
-				String prefix = findPrefix(directive);
-				if (prefix == null) {
-					logger.warn("unsupported augmented directive({})", directive);
-					continue;
-				}
-
-				Node runNode;
-				Node parentOfPara = null;
-				Node targetPara = runNode = n.getParentNode().getParentNode(); // maybe w:r
-
-				if (!runNode.getNodeName().equals("w:r")) {
-					logger.warn("runNode is not w:r({}, directive: {})", runNode.getNodeName(), directive);
-				}
-					
-
-				// find table row element following parent nodes.
-				if (prefix.contains("row"))
+					if (!runNode.getNodeName().equals("w:r")) {
+						logger.warn("runNode is not w:r({}, directive: {})", runNode.getNodeName(), ad.getRemaining());
+						continue;
+					}
+					// find table row element following parent nodes.
 					do {
 						targetPara = targetPara.getParentNode();
-					} while (!targetPara.getNodeName().equals("w:tr"));
-				else if (prefix.contains("paragraph"))
-				{
-					logger.debug("not supported yet");
+					} while (!targetPara.getNodeName().equals(ad.getExpectedParent()));
+					parentOfPara = targetPara.getParentNode();
+
+					if (!ad.isBefore()) {
+						targetPara = targetPara.getNextSibling();
+					}
+
+					// insert magic node
+					parentOfPara.insertBefore(getMagicNode(doc, ad.getRemaining()), targetPara);
+
+					// remove annotated node
+					runNode.getParentNode().removeChild(runNode);
+				} catch (CannotParseAugmentedDirectiveException e) {
 					continue;
 				}
 
-				parentOfPara = targetPara.getParentNode();
-
-				if (directive.startsWith("@after-row")) {
-					targetPara = targetPara.getNextSibling();
-				}
-
-				// insert magic node
-				parentOfPara.insertBefore(getMagicNode(doc, unwrapAugmentedDirective(directive)), targetPara);
-
-				// remove annotated node
-				runNode.getParentNode().removeChild(runNode);
 			}
-			
+
 			XMLDocHelper.save(doc, new File(pkg.getDataDir(), "word/document.xml"), true);
 
 		} catch (Exception e) {
