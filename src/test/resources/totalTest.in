@@ -1,0 +1,20 @@
+{
+	"title": "종합 테스트",
+	"author": "Alberto Hurtado",
+	"employees": 
+	[
+		{ 
+			"name": "stania",
+			"tel": "010-1111-2222"
+		},
+		{
+			"name": "xeraph",
+			"tel": "010-3333-4444"
+		},
+		{
+			"name": "gotoweb",
+			"tel": "010-5555-6666"
+		}
+	]
+}
+

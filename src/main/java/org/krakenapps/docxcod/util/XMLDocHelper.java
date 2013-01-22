@@ -80,6 +80,7 @@ public class XMLDocHelper {
 					}
 					uriMap.put(nsName, nsURI);
 				}
+				
 			} catch (XPathExpressionException e) {
 			}
 		}

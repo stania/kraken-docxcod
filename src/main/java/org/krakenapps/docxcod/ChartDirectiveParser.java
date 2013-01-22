@@ -509,6 +509,9 @@ public class ChartDirectiveParser implements OOXMLProcessor {
 
 			XMLDocHelper.save(doc, new File(pkg.getDataDir(), "word/document.xml"), true);
 
+		} catch (XPathExpressionException e) {
+			// "접두부는 이름 공간으로 분석되어야 합니다: c"
+			logger.trace("maybe no chart element in this document. pass.");
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {

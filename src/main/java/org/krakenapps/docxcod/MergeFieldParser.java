@@ -31,7 +31,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 public class MergeFieldParser implements OOXMLProcessor {
-	
+
 	private Logger logger = LoggerFactory.getLogger(getClass().getName());
 
 	public void process(OOXMLPackage pkg, Map<String, Object> rootMap) {
@@ -64,7 +64,7 @@ public class MergeFieldParser implements OOXMLProcessor {
 			}
 
 			XMLDocHelper.save(doc, new File(pkg.getDataDir(), "word/document.xml"), true);
-			
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
@@ -120,10 +120,10 @@ public class MergeFieldParser implements OOXMLProcessor {
 			}
 
 			// n : w:fldSimple can contain many w:r in its children
-//			for (Node c : new NodeListWrapper(n.getChildNodes())) {
-//				if (c.getNodeName() != null)
-//					parent.insertBefore(c.cloneNode(true), n);
-//			}
+			// for (Node c : new NodeListWrapper(n.getChildNodes())) {
+			// if (c.getNodeName() != null)
+			// parent.insertBefore(c.cloneNode(true), n);
+			// }
 			parent.removeChild(n);
 		} else if (n.getNodeName().equals("w:fldChar")) {
 			logger.debug("fldChar found");
@@ -153,11 +153,11 @@ public class MergeFieldParser implements OOXMLProcessor {
 			 */
             // @formatter:on
 			Node firstRun = n.getParentNode();
-			Node sibling = firstRun.getNextSibling();
+			Node beginRun = null;
+			Node sibling = firstRun;
 			Node lastRun = null;
 			Node newRun = null;
 			ArrayList<Node> willBeRemoved = new ArrayList<Node>();
-			willBeRemoved.add(firstRun);
 
 			while (sibling != null)
 			{
@@ -178,45 +178,66 @@ public class MergeFieldParser implements OOXMLProcessor {
 						sibling = sibling.getNextSibling();
 						continue;
 					}
-					if (namedItem.getNodeValue().equals("separate")) {
+					if (namedItem.getNodeValue().equals("begin")) {
+						// beginRun will not be removed
+						beginRun = sibling;
+
 						sibling = sibling.getNextSibling();
 
-						// newRun will not be removed
-						newRun = sibling;
+						continue;// live
+					}
+					if (namedItem.getNodeValue().equals("separate")) {
+						// beginRun will not be removed
+						beginRun = sibling;
+
+						sibling = sibling.getNextSibling();
+
 						// skip whitespace elements and find first w:r.
-						while (!newRun.getNodeName().equals("w:r")) {
-							newRun = newRun.getNextSibling();
+						while (beginRun != null && !beginRun.getNodeName().equals("w:r")) {
+							beginRun = beginRun.getNextSibling();
 						}
-
-						// replace contents of first w:r. so formating style of
-						// newRun will preserved.
-						Node textNode = findTextNode(newRun);
-						if (textNode == null) {
-							logger.warn("no text-containing run element found with directive. skipped. : {}", directive);
-							continue;
-						}
-
-						textNode.setTextContent("");
-						textNode.appendChild(getMagicNode(doc, directive));
 
 						continue;// live
 					}
 					if (namedItem.getNodeValue().equals("end")) {
 						lastRun = sibling;
+
 						break;
 					}
 				}
 				sibling = sibling.getNextSibling();
 			}
-			willBeRemoved.remove(newRun);
+			willBeRemoved.remove(beginRun);
 
-			if (lastRun != null) { // found matching "end" fldChar
-				Node parentNode = firstRun.getParentNode();
-				for (Node node : willBeRemoved) {
-					parentNode.removeChild(node);
-				}
+			if (beginRun != null && lastRun != null) { // found matching "end" fldChar
+				do {
+					Node parentNode = firstRun.getParentNode();
+					for (Node node : willBeRemoved) {
+						parentNode.removeChild(node);
+					}
+
+					// replace contents of first w:r. so formating style of
+					// newRun will preserved.
+					Node textNode = findTextNode(beginRun);
+					if (textNode != null) {
+						textNode.setTextContent("");
+						textNode.appendChild(getMagicNode(doc, directive));
+						break;
+					}
+					Node fldCharNode = findNode(beginRun, "w:fldChar"); 
+					if (fldCharNode != null) {
+						textNode = doc.createElement("w:t");
+						textNode.appendChild(getMagicNode(doc, directive));
+						beginRun.appendChild(textNode);
+						beginRun.removeChild(fldCharNode);
+						break;
+					}
+					
+					logger.warn("not-supported fldChar type node");
+
+				} while (false);
 			} else {
-				logger.warn("no matching \"end\" fldChar found");
+				logger.warn("no coressponding begin & end fldChar found");
 			}
 		}
 
@@ -276,7 +297,18 @@ public class MergeFieldParser implements OOXMLProcessor {
 		return null;
 	}
 
+	private Node findNode(Node sibling, String elemName) {
+		for (Node n : new NodeListIterAdapter(sibling.getChildNodes())) {
+			if (n.getNodeName().equals(elemName)) {
+				return n;
+			}
+		}
+		return null;
+	}
+
 	private Node findTextNode(Node sibling) {
+		if (sibling.getFirstChild() == null)
+			return null;
 		for (Node n : new NodeListIterAdapter(sibling.getChildNodes())) {
 			if (n.getNodeName().equals("w:t")) {
 				return n;

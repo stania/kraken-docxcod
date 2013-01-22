@@ -44,11 +44,11 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 				{ "@before-row", "before", "w:tr" },
 				{ "@row", "before", "w:tr" },
 				{ "@after-row", "after", "w:tr" },
-				{ "@/row", "after", "w:tr" },
+				{ "/@row", "after", "w:tr" },
 				{ "@before-para", "before", "w:p" },
 				{ "@para", "before", "w:p" },
 				{ "@after-para", "after", "w:p" },
-				{ "@/para", "after", "w:p" },
+				{ "/@para", "after", "w:p" },
 		};
 		private String prefix;
 		private String remaining;
@@ -64,9 +64,6 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 		}
 
 		public static AugmentedDirective parseDirective(String directive) {
-
-			if (!directive.startsWith("@"))
-				throw new CannotParseAugmentedDirectiveException();
 
 			for (String[] entry : augmentedDirectives) {
 				String prefix = entry[0];
@@ -151,24 +148,6 @@ public class AugmentedDirectiveProcessor implements OOXMLProcessor {
 		} finally {
 			safeClose(f);
 		}
-	}
-
-	private String findPrefix(String directive) {
-		for (String ad : augmentedDirectives) {
-			if (directive.startsWith(ad)) {
-				return ad;
-			}
-		}
-		return null;
-	}
-
-	private String unwrapAugmentedDirective(String directive) {
-		for (String ad : augmentedDirectives) {
-			if (directive.startsWith(ad)) {
-				return directive.substring(ad.length()).trim();
-			}
-		}
-		return directive;
 	}
 
 	private Node getMagicNode(Document doc, String content) {

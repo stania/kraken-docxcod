@@ -45,7 +45,7 @@ public class DocxTest {
 	public void tearDown() throws Exception {
 		tearDownHelper.tearDown();
 	}
-
+	
 	@Test
 	public void fieldTest() throws IOException {
 		File targetDir = new File(".test/fieldTest");
@@ -82,6 +82,33 @@ public class DocxTest {
 			assertTrue(dirStr.equals(expected[cnt++]));
 		}
 	}
+
+	@Test
+	public void totalTest() throws IOException, JSONException {
+		File targetDir = new File(".test/_totalTest");
+		targetDir.mkdirs();
+		// tearDownHelper.add(targetDir);
+
+		OOXMLPackage docx = new OOXMLPackage();
+		docx.load(getClass().getResourceAsStream("/totalTest.docx"), targetDir);
+
+		InputStreamReader inputReader = new InputStreamReader(getClass().getResourceAsStream("/totalTest.in"));
+		JSONTokener tokener = new JSONTokener(inputReader);
+		Map<String, Object> rootMap = JsonHelper.parse((JSONObject) tokener.nextValue());
+
+		List<OOXMLProcessor> processors = new ArrayList<OOXMLProcessor>();
+		docx.apply(new MergeFieldParser(), rootMap);
+		docx.apply(new AugmentedDirectiveProcessor(), rootMap);
+		docx.apply(new ChartDirectiveParser(), rootMap);
+		docx.apply(new MagicNodeUnwrapper("word/document.xml"), rootMap);
+		docx.apply(new FreeMarkerRunner("word/document.xml"), rootMap);
+
+		File saveFile = new File(".test/totalTest-save.docx");
+		docx.save(new FileOutputStream(saveFile));
+		// tearDownHelper.add(saveFile);
+		
+	}
+
 
 	@Test
 	public void chartTest() throws IOException, JSONException {
